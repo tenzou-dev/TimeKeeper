@@ -1,6 +1,7 @@
 # StageTimer — timer panggung
 
-Aplikasi timer untuk acara/panggung, mirip stagetimer.io. Repo GitHub: **TimeKeeper**.
+Aplikasi timer untuk acara/panggung, mirip stagetimer.io. Repo GitHub:
+**[tenzou-dev/TimeKeeper](https://github.com/tenzou-dev/TimeKeeper)**.
 Ada dua cara pakai:
 
 | Mode | Cara akses | Cocok untuk |
@@ -20,6 +21,20 @@ Keduanya memakai tampilan yang sama:
 - **Banyak akun lewat GitHub** — siapa pun yang punya akun GitHub bisa masuk; login pertama
   otomatis membuat akun. Setiap akun mendapat **ruang timer sendiri**, jadi pengguna lain
   tidak bisa mengubah timer acara orang lain.
+
+### Tangkapan layar
+
+| Dashboard operator | Layar panggung |
+| --- | --- |
+| [![Dashboard operator](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png) | [![Layar panggung](docs/screenshots/stage-display.png)](docs/screenshots/stage-display.png) |
+
+---
+
+## Link penting
+
+- Aplikasi online: <https://stage-timer.tenzou-dev.workers.dev>
+- Repo GitHub: <https://github.com/tenzou-dev/TimeKeeper>
+- Link layar publik (contoh): <https://stage-timer.tenzou-dev.workers.dev/display?room=utama>
 
 ---
 

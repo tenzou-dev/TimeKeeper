@@ -833,6 +833,26 @@ body.dashboard {
   padding: 0 4px;
 }
 
+.foot-credit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-2);
+}
+
+.foot-credit a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.foot-credit a:hover {
+  text-decoration: underline;
+}
+
 /* Scrollbar ---------------------------------------------------------- */
 .rundown-list::-webkit-scrollbar {
   width: 8px;
@@ -864,7 +884,8 @@ body.dashboard {
     align-items: start;
   }
 
-  .col-side .foot-note {
+  .col-side .foot-note,
+  .col-side .foot-credit {
     grid-column: 1 / -1;
   }
 }
