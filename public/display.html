@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070b" />
+    <title>Layar Panggung — StageTimer</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b11'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%234ade80' stroke-width='5'/%3E%3Cpath d='M32 21v12l8 5' fill='none' stroke='%23e9f0f8' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/display.css" />
+  </head>
+  <body>
+    <div class="stage" id="stage" data-theme="dark" data-level="ok" data-blink="true">
+      <header class="stage-head">
+        <div class="stage-label" id="label"></div>
+        <div class="stage-sub" id="sublabel"></div>
+      </header>
+
+      <main class="stage-center">
+        <div class="stage-flag" id="flag" hidden>Waktu habis</div>
+        <div class="stage-timer" id="timer" data-long="true">--:--</div>
+      </main>
+
+      <div class="stage-message-slot">
+        <div class="stage-message" id="message" data-tone="info" hidden></div>
+      </div>
+
+      <div class="stage-progress" id="progressWrap">
+        <div class="stage-progress-fill" id="progress"></div>
+      </div>
+
+      <footer class="stage-foot">
+        <div class="stage-next" id="next"></div>
+        <div class="stage-clock" id="clock"></div>
+      </footer>
+
+      <div class="stage-status" id="status" data-status="online" title="Koneksi"></div>
+      <div class="stage-hint" id="hint">Tekan F atau klik dua kali untuk layar penuh</div>
+    </div>
+
+    <script src="/js/shared.js"></script>
+    <script src="/js/display.js"></script>
+  </body>
+</html>

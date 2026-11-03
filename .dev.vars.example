@@ -1,0 +1,17 @@
+# Salin file ini menjadi .dev.vars untuk testing lokal dengan Wrangler.
+# File .dev.vars TIDAK boleh di-commit (sudah masuk .gitignore).
+#
+# Untuk production, isi lewat:
+#   npx wrangler secret put ADMIN_EMAIL
+#   npx wrangler secret put ADMIN_PASSWORD
+#   npx wrangler secret put SESSION_SECRET
+
+ADMIN_EMAIL=operator@example.com
+ADMIN_PASSWORD=ganti-dengan-password-kuat
+SESSION_SECRET=ganti-dengan-teks-acak-panjang-minimal-32-karakter
+
+# Opsional: login/signup GitHub (untuk banyak akun)
+# Buat OAuth App di GitHub -> Settings -> Developer settings -> OAuth Apps.
+# Callback URL untuk dev: http://localhost:8787/api/auth/github/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=

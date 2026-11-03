@@ -1,0 +1,394 @@
+/* StageTimer — layar panggung */
+:root {
+  --stage-bg: #05070b;
+  --stage-fg: #f5f9ff;
+  --stage-dim: #8ea0b5;
+  --stage-line: rgba(255, 255, 255, 0.14);
+  --stage-progress: rgba(255, 255, 255, 0.12);
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--stage-bg);
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.hide-cursor {
+  cursor: none;
+}
+
+.stage {
+  --pad-y: clamp(18px, 4vh, 60px);
+  --pad-x: clamp(22px, 5vw, 110px);
+  --level-color: var(--stage-fg);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--pad-y) var(--pad-x);
+  gap: clamp(8px, 1.6vh, 24px);
+  background: var(--stage-bg);
+  color: var(--stage-fg);
+  overflow: hidden;
+}
+
+.stage[data-theme="light"] {
+  --stage-bg: #f6f8fb;
+  --stage-fg: #0a1420;
+  --stage-dim: #55657a;
+  --stage-line: rgba(10, 20, 32, 0.16);
+  --stage-progress: rgba(10, 20, 32, 0.12);
+}
+
+/* Warna berdasarkan level waktu */
+.stage[data-level="warn"] {
+  --level-color: #fbbf24;
+}
+.stage[data-level="danger"] {
+  --level-color: #fb923c;
+}
+.stage[data-level="over"] {
+  --level-color: #ef4444;
+}
+
+.stage[data-theme="light"][data-level="warn"] {
+  --level-color: #b45309;
+}
+.stage[data-theme="light"][data-level="danger"] {
+  --level-color: #c2410c;
+}
+.stage[data-theme="light"][data-level="over"] {
+  --level-color: #b91c1c;
+}
+
+/* Kepala ------------------------------------------------------------- */
+.stage-head {
+  flex: none;
+  text-align: center;
+  min-height: 1px;
+}
+
+.stage-label {
+  font-size: clamp(18px, 4vh, 58px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--stage-fg);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stage-sub {
+  margin-top: 0.35em;
+  font-size: clamp(13px, 2.1vh, 30px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--stage-dim);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stage-sub:empty {
+  display: none;
+}
+
+/* Timer -------------------------------------------------------------- */
+.stage-center {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-timer {
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-weight: 700;
+  font-size: min(46vh, 32vw);
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+  color: var(--level-color);
+  transition: color 0.25s ease;
+  white-space: nowrap;
+}
+
+.stage-timer[data-long="true"] {
+  font-size: min(33vh, 23vw);
+  letter-spacing: -0.045em;
+}
+
+.stage-timer[data-long="xlong"] {
+  font-size: min(27vh, 18vw);
+  letter-spacing: -0.05em;
+}
+
+.stage-flag {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.32em 0.8em;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  font-size: clamp(12px, 2.1vh, 26px);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stage[data-theme="light"] .stage-flag {
+  color: #b91c1c;
+  background: rgba(185, 28, 28, 0.07);
+}
+
+/* Pesan ------------------------------------------------------------- */
+.stage-message-slot {
+  flex: none;
+  min-height: clamp(40px, 8.5vh, 110px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-message {
+  max-width: min(92vw, 1400px);
+  padding: 0.36em 0.9em;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  font-size: min(4.4vh, 3.6vw);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: rgba(148, 163, 184, 0.08);
+  color: #e2e8f0;
+  box-shadow: 0 0 60px -20px currentColor;
+}
+
+.stage-message[data-tone="info"] {
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.1);
+}
+.stage-message[data-tone="warn"] {
+  color: #fcd34d;
+  background: rgba(251, 191, 36, 0.1);
+}
+.stage-message[data-tone="danger"] {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.12);
+}
+.stage-message[data-tone="success"] {
+  color: #86efac;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.stage[data-theme="light"] .stage-message {
+  color: #334155;
+}
+.stage[data-theme="light"] .stage-message[data-tone="info"] {
+  color: #0369a1;
+}
+.stage[data-theme="light"] .stage-message[data-tone="warn"] {
+  color: #a16207;
+}
+.stage[data-theme="light"] .stage-message[data-tone="danger"] {
+  color: #b91c1c;
+}
+.stage[data-theme="light"] .stage-message[data-tone="success"] {
+  color: #15803d;
+}
+
+/* Progres ----------------------------------------------------------- */
+.stage-progress {
+  flex: none;
+  height: clamp(8px, 1.4vh, 18px);
+  border-radius: 999px;
+  background: var(--stage-progress);
+  overflow: hidden;
+}
+
+.stage-progress-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: var(--level-color);
+  transition: width 0.25s linear, background-color 0.3s ease;
+}
+
+/* Kaki -------------------------------------------------------------- */
+.stage-foot {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3vw;
+  min-height: clamp(20px, 3.2vh, 38px);
+  font-size: clamp(11px, 2.2vh, 28px);
+  color: var(--stage-dim);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.stage-next {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-next:empty {
+  visibility: hidden;
+}
+
+.stage-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Indikator koneksi ------------------------------------------------- */
+.stage-status {
+  position: absolute;
+  left: clamp(10px, 1.6vw, 24px);
+  bottom: clamp(10px, 1.6vh, 22px);
+  width: clamp(7px, 0.8vw, 12px);
+  height: clamp(7px, 0.8vw, 12px);
+  border-radius: 50%;
+  background: #22c55e;
+  opacity: 0;
+  transition: opacity 0.4s ease, background-color 0.2s ease;
+}
+
+.stage-status[data-status="offline"] {
+  background: #f59e0b;
+  opacity: 0.85;
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+.stage-status[data-status="online"] {
+  opacity: 0.28;
+}
+
+.stage[data-hide-status="true"] .stage-status {
+  display: none;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Petunjuk layar penuh ---------------------------------------------- */
+.stage-hint {
+  position: absolute;
+  right: clamp(12px, 1.8vw, 26px);
+  top: clamp(12px, 2vh, 24px);
+  left: auto;
+  bottom: auto;
+  transform: none;
+  padding: 0.55em 1em;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  font-size: clamp(11px, 1.5vh, 15px);
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.stage-hint.is-hidden {
+  opacity: 0;
+}
+
+/* Animasi waktu habis ----------------------------------------------- */
+.stage[data-level="over"][data-blink="true"] .stage-timer {
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+.stage[data-level="over"][data-blink="true"] .stage-flag {
+  animation: flag-pulse 1s ease-in-out infinite;
+}
+
+@keyframes timer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes flag-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Mode pratinjau (iframe di dashboard) ------------------------------- */
+body.preview .stage-hint,
+body.preview .stage-status {
+  display: none !important;
+}
+
+body.preview {
+  cursor: default;
+}
+
+body.preview .stage {
+  --pad-y: clamp(12px, 4vh, 40px);
+  --pad-x: clamp(14px, 5vw, 70px);
+}
+
+body.preview .stage-timer {
+  font-size: min(46vh, 30vw);
+}
+
+body.preview .stage-timer[data-long="true"] {
+  font-size: min(34vh, 21vw);
+}
+
+body.preview .stage-timer[data-long="xlong"] {
+  font-size: min(27vh, 17vw);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-timer,
+  .stage-flag {
+    animation: none !important;
+  }
+}

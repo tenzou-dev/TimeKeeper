@@ -1,0 +1,325 @@
+/* StageTimer — halaman login */
+body.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 18px;
+  background: radial-gradient(760px 460px at 12% 0%, rgba(34, 197, 94, 0.12), transparent 62%),
+    radial-gradient(820px 520px at 92% 8%, rgba(56, 130, 246, 0.13), transparent 58%),
+    radial-gradient(600px 400px at 50% 110%, rgba(74, 222, 128, 0.06), transparent 60%), var(--bg);
+}
+
+.login-shell {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.login-card {
+  width: 100%;
+  padding: 28px 26px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(23, 33, 45, 0.82), rgba(11, 18, 27, 0.96));
+  box-shadow: 0 32px 80px -36px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.login-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.login-brand .brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--accent);
+  background: linear-gradient(150deg, #143223, #0a1710);
+  border: 1px solid #24503a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-brand .brand-mark svg {
+  width: 20px;
+  height: 20px;
+}
+
+.login-brand .brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.login-brand .brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.login-brand .brand-sub {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.login-heading {
+  margin-bottom: 20px;
+}
+
+.login-heading h1 {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 7px;
+}
+
+.login-heading p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.login-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 13px;
+  margin-bottom: 18px;
+  border-radius: 10px;
+  border: 1px solid #6b4a10;
+  background: rgba(245, 158, 11, 0.09);
+  color: #fde68a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.login-notice strong {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fef3c7;
+}
+
+.login-notice code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* Login GitHub ------------------------------------------------------- */
+.github-block {
+  margin-bottom: 2px;
+}
+
+.github-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 46px;
+  border-radius: 11px;
+  border: 1px solid #d0d7de;
+  background: #f6f8fa;
+  color: #0d1117;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+
+.github-btn:hover {
+  background: #eef1f4;
+  border-color: #afb8c1;
+}
+
+.github-btn:active {
+  transform: translateY(1px);
+}
+
+.github-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.github-btn svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.github-note {
+  margin-top: 9px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-2);
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--muted-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.login-field .input {
+  height: 44px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.password-wrap {
+  position: relative;
+  display: block;
+}
+
+.password-wrap .input {
+  padding-right: 64px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.password-toggle:hover {
+  background: #1b2633;
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid #7f1d1d;
+  background: #2a1315;
+  color: #fecaca;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.login-error::before {
+  content: "!";
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #2a0505;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.login-submit {
+  height: 46px;
+  margin-top: 3px;
+  font-size: 15px;
+  border-radius: 11px;
+}
+
+.login-submit[disabled] {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+
+.login-foot a {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.login-foot a:hover {
+  color: var(--accent);
+}
+
+.login-note {
+  font-size: 11px;
+  color: var(--muted-2);
+  text-align: center;
+}
+
+@media (max-width: 460px) {
+  .login-card {
+    padding: 24px 20px 20px;
+  }
+
+  .login-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
