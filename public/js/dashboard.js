@@ -114,8 +114,10 @@
   /* Daftar ruang                                                        */
   /* ------------------------------------------------------------------ */
 
-  var ROOMS_KEY = 'st_room_history';
+  var ROOM_HISTORY_PREFIX = 'st_room_history:';
   var DEFAULT_ROOM_LABEL = 'Pembicara';
+  var roomHistoryKey = ROOM_HISTORY_PREFIX + 'guest';
+  var canManageRooms = false;
   var serverRooms = [];
   var roomEntries = [];
   var lastRoomLabel = null;
@@ -128,9 +130,26 @@
     return label === DEFAULT_ROOM_LABEL ? '' : label;
   }
 
+  function cleanRoomName(value) {
+    return String(value == null ? '' : value)
+      .trim()
+      .slice(0, 160);
+  }
+
+  function migrateLegacyHistory(targetKey) {
+    try {
+      var legacy = localStorage.getItem('st_room_history');
+      if (!legacy) return;
+      if (!localStorage.getItem(targetKey)) localStorage.setItem(targetKey, legacy);
+      localStorage.removeItem('st_room_history');
+    } catch (err) {
+      /* localStorage bisa diblokir */
+    }
+  }
+
   function readRoomHistory() {
     try {
-      var parsed = JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]');
+      var parsed = JSON.parse(localStorage.getItem(roomHistoryKey) || '[]');
       if (!Array.isArray(parsed)) return [];
       return parsed
         .filter(function (item) {
@@ -139,7 +158,9 @@
         .map(function (item) {
           return {
             id: ST.normalizeRoom(item.id),
+            name: cleanRoomName(item.name),
             label: cleanRoomLabel(item.label),
+            owner: String(item.owner || '').slice(0, 20),
             updatedAt: Number(item.updatedAt) || 0,
           };
         });
@@ -150,7 +171,7 @@
 
   function writeRoomHistory(list) {
     try {
-      localStorage.setItem(ROOMS_KEY, JSON.stringify(list.slice(0, 60)));
+      localStorage.setItem(roomHistoryKey, JSON.stringify(list.slice(0, 60)));
     } catch (err) {
       /* localStorage bisa diblokir; daftar server tetap dipakai */
     }
@@ -165,14 +186,16 @@
 
     serverRooms.forEach(function (item) {
       var entry = map[item.id];
-      if (!entry) entry = { id: item.id, label: '', updatedAt: 0 };
+      if (!entry) entry = { id: item.id, name: '', label: '', owner: '', updatedAt: 0 };
+      if (item.name) entry.name = item.name;
       if (item.label) entry.label = item.label;
+      if (item.owner) entry.owner = item.owner;
       entry.updatedAt = Math.max(entry.updatedAt || 0, Number(item.updatedAt) || 0);
       map[item.id] = entry;
     });
 
     var current = map[room];
-    if (!current) current = { id: room, label: '', updatedAt: Date.now() };
+    if (!current) current = { id: room, name: '', label: '', owner: '', updatedAt: Date.now() };
     if (state && state.label) {
       var currentLabel = cleanRoomLabel(state.label);
       if (currentLabel) current.label = currentLabel;
@@ -190,12 +213,19 @@
     renderRooms();
   }
 
+  function roomDisplayName(entry) {
+    return entry.name || entry.label || entry.id;
+  }
+
   function renderRooms() {
     if (!els.roomList) return;
     els.roomList.textContent = '';
     els.roomCount.textContent = roomEntries.length + ' ruang';
 
     roomEntries.forEach(function (entry) {
+      var wrap = document.createElement('div');
+      wrap.className = 'room-item-wrap';
+
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'room-item';
@@ -212,16 +242,27 @@
 
       var label = document.createElement('span');
       label.className = 'room-item-label';
-      label.textContent = entry.label || entry.id;
-      label.title = entry.label ? entry.label + ' · #' + entry.id : entry.id;
+      label.textContent = roomDisplayName(entry);
+      label.title = entry.name
+        ? entry.name + ' · #' + entry.id
+        : entry.label
+          ? entry.label + ' · #' + entry.id
+          : entry.id;
 
       main.appendChild(label);
 
-      if (entry.label) {
+      if (entry.name || entry.label) {
         var id = document.createElement('span');
         id.className = 'room-item-id';
         id.textContent = '#' + entry.id;
         main.appendChild(id);
+      }
+
+      if (entry.owner === 'github' && canManageRooms) {
+        var owner = document.createElement('span');
+        owner.className = 'room-item-owner';
+        owner.textContent = 'GitHub';
+        main.appendChild(owner);
       }
 
       button.appendChild(main);
@@ -238,11 +279,34 @@
         button.appendChild(arrow);
       }
 
-      button.addEventListener('click', function () {
-        openRoom(entry.id);
-      });
+      wrap.appendChild(button);
 
-      els.roomList.appendChild(button);
+      if (canManageRooms) {
+        var actions = document.createElement('div');
+        actions.className = 'room-actions';
+
+        var edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'room-action';
+        edit.dataset.act = 'edit';
+        edit.dataset.room = entry.id;
+        edit.textContent = 'Ubah';
+        edit.title = 'Ubah nama tampilan ruang';
+        actions.appendChild(edit);
+
+        var remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'room-action room-action-danger';
+        remove.dataset.act = 'delete';
+        remove.dataset.room = entry.id;
+        remove.textContent = 'Hapus';
+        remove.title = 'Hapus ruang';
+        actions.appendChild(remove);
+
+        wrap.appendChild(actions);
+      }
+
+      els.roomList.appendChild(wrap);
     });
   }
 
@@ -260,7 +324,7 @@
 
     var nextLabel = cleanRoomLabel(label);
     if (!entry) {
-      entry = { id: id, label: nextLabel, updatedAt: Date.now() };
+      entry = { id: id, name: '', label: nextLabel, owner: '', updatedAt: Date.now() };
       list.unshift(entry);
     } else {
       if (nextLabel) entry.label = nextLabel;
@@ -268,6 +332,47 @@
     }
 
     writeRoomHistory(list);
+    mergeRoomList();
+  }
+
+  function setRoomName(id, name) {
+    id = ST.normalizeRoom(id);
+    var value = cleanRoomName(name);
+    var list = readRoomHistory();
+    var entry = null;
+
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        entry = list[i];
+        break;
+      }
+    }
+
+    if (!entry) {
+      entry = { id: id, name: value, label: '', owner: '', updatedAt: Date.now() };
+      list.unshift(entry);
+    } else {
+      entry.name = value;
+      entry.updatedAt = Date.now();
+    }
+
+    writeRoomHistory(list);
+    for (var j = 0; j < serverRooms.length; j++) {
+      if (serverRooms[j].id === id) serverRooms[j].name = value;
+    }
+    mergeRoomList();
+  }
+
+  function removeRoomFromHistory(id) {
+    id = ST.normalizeRoom(id);
+    writeRoomHistory(
+      readRoomHistory().filter(function (item) {
+        return item.id !== id;
+      })
+    );
+    serverRooms = serverRooms.filter(function (item) {
+      return item.id !== id;
+    });
     mergeRoomList();
   }
 
@@ -295,6 +400,90 @@
     location.href = '/?room=' + encodeURIComponent(next);
   }
 
+  function findRoomEntry(id) {
+    for (var i = 0; i < roomEntries.length; i++) {
+      if (roomEntries[i].id === id) return roomEntries[i];
+    }
+    return null;
+  }
+
+  function postRoom(url, payload) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (res) {
+      return res
+        .json()
+        .catch(function () {
+          return {};
+        })
+        .then(function (data) {
+          if (!res.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || 'Permintaan gagal.');
+          }
+          return data;
+        });
+    });
+  }
+
+  function editRoom(id) {
+    var entry = findRoomEntry(id);
+    if (!entry) return;
+
+    var next = window.prompt(
+      'Nama tampilan untuk ruang #' + id + '.\nKosongkan untuk memakai judul sesi:',
+      entry.name || ''
+    );
+    if (next === null) return;
+    next = cleanRoomName(next);
+
+    postRoom('/api/rooms/update', { room: id, name: next })
+      .then(function () {
+        setRoomName(id, next);
+        toast(next ? 'Nama ruang disimpan.' : 'Nama ruang dikosongkan.', 'ok');
+      })
+      .catch(function (err) {
+        toast(err.message || 'Gagal menyimpan nama ruang.', 'error');
+      });
+  }
+
+  function deleteRoom(id) {
+    var entry = findRoomEntry(id);
+    if (!entry) return;
+    if (id === 'utama') {
+      toast('Ruang utama tidak bisa dihapus.', 'error');
+      return;
+    }
+
+    var display = roomDisplayName(entry);
+    var extra =
+      entry.owner === 'github'
+        ? '\n\nRuang ini milik akun GitHub. Menghapus akan mengosongkan timer akun tersebut.'
+        : '';
+    var message =
+      'Hapus ruang "' +
+      display +
+      '" (#' +
+      id +
+      ')?\n\nTimer, rundown, dan pengaturan ruang ini akan dihapus.' +
+      extra;
+    if (!confirm(message)) return;
+
+    postRoom('/api/rooms/delete', { room: id })
+      .then(function () {
+        removeRoomFromHistory(id);
+        if (id === room) {
+          location.href = '/?room=utama';
+          return;
+        }
+        toast('Ruang ' + id + ' dihapus.', 'ok');
+      })
+      .catch(function (err) {
+        toast(err.message || 'Gagal menghapus ruang.', 'error');
+      });
+  }
+
   function loadRoomList() {
     fetch('/api/rooms', { headers: { Accept: 'application/json' } })
       .then(function (res) {
@@ -310,7 +499,9 @@
           .map(function (item) {
             return {
               id: ST.normalizeRoom(item.id),
+              name: cleanRoomName(item.name),
               label: cleanRoomLabel(item.label),
+              owner: String(item.owner || '').slice(0, 20),
               updatedAt: Number(item.updatedAt) || 0,
             };
           });
@@ -321,8 +512,50 @@
       });
   }
 
-  rememberRoom(room, '');
-  loadRoomList();
+  function initRooms(scope, onlyRoom) {
+    roomHistoryKey = ROOM_HISTORY_PREFIX + scope;
+    if (scope === 'admin' || scope === 'local') migrateLegacyHistory(roomHistoryKey);
+
+    serverRooms = [];
+    roomEntries = [];
+    lastRoomLabel = null;
+    lastTouchedLabel = null;
+    els.roomRow.hidden = !canManageRooms;
+
+    if (onlyRoom) {
+      serverRooms = [
+        {
+          id: ST.normalizeRoom(onlyRoom.id),
+          name: cleanRoomName(onlyRoom.name),
+          label: cleanRoomLabel(onlyRoom.label),
+          owner: String(onlyRoom.owner || '').slice(0, 20),
+          updatedAt: Number(onlyRoom.updatedAt) || Date.now(),
+        },
+      ];
+      rememberRoom(room, '');
+    } else {
+      rememberRoom(room, '');
+      loadRoomList();
+    }
+
+    if (state) syncRoomLabel();
+  }
+
+  if (els.roomList) {
+    els.roomList.addEventListener('click', function (event) {
+      var action = event.target.closest('button[data-act]');
+      if (action) {
+        var id = action.dataset.room;
+        if (action.dataset.act === 'edit') editRoom(id);
+        else if (action.dataset.act === 'delete') deleteRoom(id);
+        return;
+      }
+
+      var button = event.target.closest('.room-item');
+      if (!button) return;
+      openRoom(button.dataset.room);
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Akun & sesi (versi online)                                          */
@@ -346,7 +579,11 @@
       return res.json();
     })
     .then(function (config) {
-      if (!config || !config.online) return;
+      if (!config || !config.online) {
+        canManageRooms = true;
+        initRooms('local');
+        return;
+      }
 
       if (els.footNote) {
         els.footNote.textContent =
@@ -359,7 +596,11 @@
           return res.json();
         })
         .then(function (data) {
-          if (!data || !data.ok) return;
+          if (!data || !data.ok) {
+            canManageRooms = false;
+            initRooms('guest');
+            return;
+          }
 
           var login = String(data.login || '');
           var email = String(data.email || '');
@@ -374,7 +615,11 @@
             .toUpperCase();
 
           if (data.provider === 'github') {
-            els.roomRow.hidden = true;
+            canManageRooms = false;
+            initRooms('gh:' + (data.room || room), {
+              id: data.room || room,
+              owner: 'github',
+            });
             if (login) {
               els.roomName.textContent = login;
               document.title = 'StageTimer — @' + login;
@@ -385,11 +630,16 @@
                 (login || '') +
                 ' · layar panggung bisa dibuka tanpa login.';
             }
+          } else {
+            canManageRooms = true;
+            initRooms('admin');
           }
         });
     })
     .catch(function () {
       /* versi lokal / offline: tidak ada akun */
+      canManageRooms = true;
+      initRooms('local');
     });
 
   els.logout.addEventListener('click', async function () {

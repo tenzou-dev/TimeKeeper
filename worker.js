@@ -519,6 +519,19 @@ export class Room {
     await this.ensureState();
 
     try {
+      if (url.pathname === '/internal/clear') {
+        if (request.method !== 'POST') {
+          return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+        }
+        await this.ctx.storage.deleteAll();
+        await this.ctx.storage.deleteAlarm();
+        this.state = sanitizeState(null);
+        this.roomId = cleanRoomId(url.searchParams.get('room'));
+        await this.save();
+        this.broadcast();
+        return jsonResponse({ ok: true, room: this.roomId });
+      }
+
       if (url.pathname === '/api/ws') return this.handleSocket(request);
 
       if (url.pathname === '/api/state') {
@@ -813,12 +826,16 @@ export class Registry {
 
       const id = cleanRoomId(body && body.room);
       const label = cleanText(body && body.label, 160);
+      const name = cleanText(body && body.name, 160);
+      const owner = cleanText(body && body.owner, 20);
       const existing = this.rooms[id];
       const now = Date.now();
 
       this.rooms[id] = {
         id,
+        name: name || (existing && existing.name) || '',
         label: label || (existing && existing.label) || '',
+        owner: owner || (existing && existing.owner) || '',
         updatedAt: now,
       };
 
@@ -829,6 +846,55 @@ export class Registry {
       await this.save();
 
       return jsonResponse({ ok: true, room: this.rooms[id] });
+    }
+
+    if (url.pathname === '/update') {
+      if (request.method !== 'POST') {
+        return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ ok: false, error: 'JSON tidak valid.' }, 400);
+      }
+
+      if (!body || !String(body.room || '').trim()) {
+        return jsonResponse({ ok: false, error: 'Ruang wajib diisi.' }, 400);
+      }
+
+      const id = cleanRoomId(body.room);
+      const name = cleanText(body.name, 160);
+      const existing = this.rooms[id] || { id, name: '', label: '', owner: '', updatedAt: 0 };
+      existing.name = name;
+      existing.updatedAt = Date.now();
+      this.rooms[id] = existing;
+      await this.save();
+
+      return jsonResponse({ ok: true, room: existing });
+    }
+
+    if (url.pathname === '/delete') {
+      if (request.method !== 'POST') {
+        return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ ok: false, error: 'JSON tidak valid.' }, 400);
+      }
+
+      if (!body || !String(body.room || '').trim()) {
+        return jsonResponse({ ok: false, error: 'Ruang wajib diisi.' }, 400);
+      }
+
+      const id = cleanRoomId(body.room);
+      delete this.rooms[id];
+      await this.save();
+      return jsonResponse({ ok: true, room: id });
     }
 
     if (url.pathname === '/list') {
@@ -877,16 +943,49 @@ function registryStub(env) {
   return env.REGISTRY.get(id);
 }
 
-async function registerRoom(env, room, label) {
+async function registerRoom(env, room, label, name, owner) {
   if (!env.REGISTRY) return;
   try {
     await registryStub(env).fetch('https://registry.internal/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ room, label: label || '' }),
+      body: JSON.stringify({
+        room,
+        label: label || '',
+        name: name || '',
+        owner: owner || '',
+      }),
     });
   } catch {
     /* pendaftaran ruang tidak boleh menggagalkan aksi utama */
+  }
+}
+
+async function updateRegisteredRoom(env, room, name) {
+  if (!env.REGISTRY) return false;
+  try {
+    const res = await registryStub(env).fetch('https://registry.internal/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room, name: name || '' }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteRegisteredRoom(env, room) {
+  if (!env.REGISTRY) return false;
+  try {
+    const res = await registryStub(env).fetch('https://registry.internal/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -1092,9 +1191,11 @@ export default {
 
       if (ownRoom) {
         rooms = rooms.filter((item) => item.id === ownRoom);
-        if (!rooms.length) rooms = [{ id: ownRoom, label: '', updatedAt: Date.now() }];
+        if (!rooms.length) {
+          rooms = [{ id: ownRoom, name: '', label: '', owner: 'github', updatedAt: Date.now() }];
+        }
       } else if (!rooms.some((item) => item.id === DEFAULT_ROOM)) {
-        rooms.push({ id: DEFAULT_ROOM, label: '', updatedAt: 0 });
+        rooms.push({ id: DEFAULT_ROOM, name: '', label: '', owner: 'admin', updatedAt: 0 });
       }
 
       return jsonResponse({ ok: true, rooms });
@@ -1122,7 +1223,89 @@ export default {
         );
       }
 
-      await registerRoom(env, room, cleanText(body && body.label, 160));
+      await registerRoom(
+        env,
+        room,
+        cleanText(body && body.label, 160),
+        '',
+        session.provider === 'admin' ? 'admin' : 'github'
+      );
+      return jsonResponse({ ok: true, room });
+    }
+
+    if (path === '/api/rooms/update') {
+      if (method !== 'POST') return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
+      if (session.provider !== 'admin') {
+        return jsonResponse(
+          { ok: false, error: 'Hanya akun admin yang bisa mengubah nama ruang.' },
+          403
+        );
+      }
+      if (!isSameOrigin(request)) {
+        return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        body = {};
+      }
+
+      if (!body || !String(body.room || '').trim()) {
+        return jsonResponse({ ok: false, error: 'Ruang wajib diisi.' }, 400);
+      }
+
+      const room = cleanRoomId(body.room);
+      const name = cleanText(body.name, 160);
+      const ok = await updateRegisteredRoom(env, room, name);
+      if (!ok) {
+        return jsonResponse({ ok: false, error: 'Gagal menyimpan nama ruang.' }, 500);
+      }
+
+      return jsonResponse({ ok: true, room: { id: room, name } });
+    }
+
+    if (path === '/api/rooms/delete') {
+      if (method !== 'POST') return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
+      if (session.provider !== 'admin') {
+        return jsonResponse(
+          { ok: false, error: 'Hanya akun admin yang bisa menghapus ruang.' },
+          403
+        );
+      }
+      if (!isSameOrigin(request)) {
+        return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        body = {};
+      }
+
+      if (!body || !String(body.room || '').trim()) {
+        return jsonResponse({ ok: false, error: 'Ruang wajib diisi.' }, 400);
+      }
+
+      const room = cleanRoomId(body.room);
+      if (room === DEFAULT_ROOM) {
+        return jsonResponse({ ok: false, error: 'Ruang utama tidak bisa dihapus.' }, 400);
+      }
+
+      try {
+        await roomStub(env, room).fetch(
+          'https://room.internal/internal/clear?room=' + encodeURIComponent(room),
+          { method: 'POST' }
+        );
+      } catch {
+        return jsonResponse({ ok: false, error: 'Gagal mengosongkan ruang.' }, 500);
+      }
+
+      await deleteRegisteredRoom(env, room);
       return jsonResponse({ ok: true, room });
     }
 
@@ -1158,7 +1341,15 @@ export default {
         );
       }
       if (ctx && typeof ctx.waitUntil === 'function') {
-        ctx.waitUntil(registerRoom(env, room, ''));
+        ctx.waitUntil(
+          registerRoom(
+            env,
+            room,
+            '',
+            '',
+            session.provider === 'admin' ? 'admin' : 'github'
+          )
+        );
       }
       return roomStub(env, room).fetch(request);
     }

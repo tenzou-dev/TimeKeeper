@@ -232,7 +232,9 @@ buka port-nya ke internet.
    judul + durasi sesi tersebut.
 8. Butuh pindah ruang? Buka kartu **Ruang** di dashboard, lalu klik salah satu ruang di
    daftar. Tidak perlu mengetik nama ruang lagi. Ruang yang sedang aktif ditandai
-   **Sekarang**, dan link header **StageTimer** tetap membawa ruang tersebut.
+   **Sekarang**, dan link header **StageTimer** tetap membawa ruang tersebut. Gunakan
+   **Ubah** untuk memberi nama tampilan dan **Hapus** untuk mengosongkan ruang (khusus admin;
+   ruang utama tidak bisa dihapus).
 
 ### Tombol & shortcut
 
@@ -263,6 +265,12 @@ buka port-nya ke internet.
   perlu mengetik ulang nama ruang. Ruang baru otomatis muncul di daftar saat pertama dibuka.
   Klik judul **StageTimer** tidak lagi melempar ke Ruang Utama — ruang yang sedang aktif tetap
   terbawa.
+- **Ubah & hapus ruang** (akun admin): beri nama tampilan ruang lewat tombol **Ubah**, atau
+  kosongkan timer/rundown lewat tombol **Hapus**. Nama tampilan tersimpan terpisah dari judul
+  sesi, jadi tidak mengubah teks yang tampil di panggung.
+- **Riwayat ruang per akun**: daftar ruang di browser disimpan terpisah untuk admin, tiap akun
+  GitHub, dan mode lokal. Akun GitHub hanya melihat ruangnya sendiri; akun admin memang bisa
+  melihat semua ruang untuk keperluan pengawasan.
 - State tersimpan otomatis di server; refresh browser tidak menghilangkan timer.
 - Timer tetap jalan walau device operator sempat terputus, karena waktu dihitung dari server.
 - Login operator dengan cookie sesi 24 jam (mode online), lewat GitHub atau email/password.
@@ -331,8 +339,14 @@ Lakukan 10–15 menit sebelum mulai:
   state di storage SQLite dan menyiarkan perubahan lewat **WebSocket**.
 - Daftar ruang disimpan oleh Durable Object `Registry`. Dashboard mendaftarkan ruang saat
   dibuka/dipakai, lalu menampilkan gabungan daftar server dan riwayat browser
-  (`localStorage`). Karena Durable Object tidak bisa dienumerasi, ruang lama baru muncul di
-  daftar setelah dibuka minimal sekali (atau setelah ada aksi dari dashboard).
+  (`localStorage`). Riwayat browser dipisah per akun (`admin`, `gh:<ruang>`, `local`), jadi
+  akun GitHub tidak melihat riwayat ruang akun lain. Karena Durable Object tidak bisa
+  dienumerasi, ruang lama baru muncul di daftar setelah dibuka minimal sekali (atau setelah
+  ada aksi dari dashboard).
+- Nama tampilan ruang disimpan di `Registry` dan terpisah dari judul sesi. Endpoint
+  `/api/rooms/update` dan `/api/rooms/delete` hanya menerima sesi admin. Menghapus ruang akan
+  mengosongkan state Durable Object (timer, rundown, pengaturan) dan menghapusnya dari daftar;
+  ruang `utama` tidak bisa dihapus.
 - Dashboard memakai cookie `st_session` yang ditandatangani **HMAC-SHA256**; cookie bersifat
   `HttpOnly`, `SameSite=Lax`, dan `Secure` saat HTTPS. Masa berlaku 24 jam.
 - `/api/action` membutuhkan sesi login dan memeriksa origin. Sesi GitHub hanya boleh

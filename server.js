@@ -210,9 +210,10 @@ function snapshot(room) {
 
 const rooms = new Map();
 
-function makeRoom(id, state) {
+function makeRoom(id, state, name) {
   return {
     id,
+    name: cleanText(name, 160),
     state: state || defaultState(),
     clients: new Set(),
     saveTimer: null,
@@ -232,9 +233,13 @@ function getRoom(id) {
 function loadRooms() {
   try {
     const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    for (const [id, state] of Object.entries(raw)) {
+    for (const [id, value] of Object.entries(raw)) {
       const roomId = cleanRoomId(id);
-      rooms.set(roomId, makeRoom(roomId, sanitizeState(state)));
+      if (value && typeof value === 'object' && value.state && typeof value.state === 'object') {
+        rooms.set(roomId, makeRoom(roomId, sanitizeState(value.state), value.name));
+      } else {
+        rooms.set(roomId, makeRoom(roomId, sanitizeState(value)));
+      }
     }
   } catch (err) {
     if (err.code !== 'ENOENT') console.warn('[stage-timer] gagal memuat state:', err.message);
@@ -254,18 +259,21 @@ function saveAll() {
     for (const [id, room] of rooms) {
       const { state } = room;
       data[id] = {
-        label: state.label,
-        sublabel: state.sublabel,
-        running: state.running,
-        durationMs: state.durationMs,
-        remainingMs: state.remainingMs,
-        endsAt: state.endsAt,
-        startedAt: state.startedAt,
-        message: state.message,
-        settings: state.settings,
-        rundown: state.rundown,
-        currentItemId: state.currentItemId,
-        updatedAt: state.updatedAt,
+        name: room.name || '',
+        state: {
+          label: state.label,
+          sublabel: state.sublabel,
+          running: state.running,
+          durationMs: state.durationMs,
+          remainingMs: state.remainingMs,
+          endsAt: state.endsAt,
+          startedAt: state.startedAt,
+          message: state.message,
+          settings: state.settings,
+          rundown: state.rundown,
+          currentItemId: state.currentItemId,
+          updatedAt: state.updatedAt,
+        },
       };
     }
     const tmp = DATA_FILE + '.tmp';
@@ -639,7 +647,9 @@ const server = http.createServer(async (req, res) => {
       const list = [...rooms.values()]
         .map((item) => ({
           id: item.id,
+          name: item.name || '',
           label: item.state.label || '',
+          owner: 'local',
           updatedAt: item.state.updatedAt || 0,
         }))
         .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -651,6 +661,46 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       const target = cleanRoomId(body && body.room);
       getRoom(target);
+      return sendJson(res, 200, { ok: true, room: target });
+    }
+
+    if (pathname === '/api/rooms/update') {
+      if (req.method !== 'POST') return sendText(res, 405, 'Method not allowed');
+      const body = await readJson(req);
+      const target = cleanRoomId(body && body.room);
+      if (!body || !String(body.room || '').trim()) {
+        return sendJson(res, 400, { ok: false, error: 'Ruang wajib diisi.' });
+      }
+      const room = getRoom(target);
+      room.name = cleanText(body && body.name, 160);
+      scheduleSave(room);
+      return sendJson(res, 200, { ok: true, room: { id: target, name: room.name } });
+    }
+
+    if (pathname === '/api/rooms/delete') {
+      if (req.method !== 'POST') return sendText(res, 405, 'Method not allowed');
+      const body = await readJson(req);
+      const target = cleanRoomId(body && body.room);
+      if (!body || !String(body.room || '').trim()) {
+        return sendJson(res, 400, { ok: false, error: 'Ruang wajib diisi.' });
+      }
+      if (target === DEFAULT_ROOM) {
+        return sendJson(res, 400, { ok: false, error: 'Ruang utama tidak bisa dihapus.' });
+      }
+      const room = rooms.get(target);
+      if (room) {
+        for (const client of room.clients) {
+          try {
+            client.end();
+          } catch {
+            /* diabaikan */
+          }
+        }
+        clearTimeout(room.saveTimer);
+        clearTimeout(room.messageTimer);
+        rooms.delete(target);
+      }
+      saveAll();
       return sendJson(res, 200, { ok: true, room: target });
     }
 
