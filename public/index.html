@@ -14,7 +14,7 @@
   </head>
   <body class="dashboard">
     <header class="topbar">
-      <a class="brand" href="/">
+      <a class="brand" id="brand" href="/">
         <span class="brand-mark">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
             <circle cx="12" cy="12" r="8.5" />
@@ -236,6 +236,34 @@
           </div>
         </section>
 
+        <section class="card panel" id="roomRow">
+          <div class="panel-head">
+            <h2>Ruang</h2>
+            <span class="panel-note" id="roomCount">1 ruang</span>
+          </div>
+          <div class="panel-body">
+            <div class="room-list" id="roomList"></div>
+
+            <form class="room-form" id="roomForm" autocomplete="off">
+              <input
+                id="roomInput"
+                class="input"
+                maxlength="40"
+                placeholder="Ketik nama ruang baru atau lama"
+                aria-label="Nama ruang"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button class="btn btn-primary" id="changeRoom" type="submit">Buka</button>
+            </form>
+
+            <p class="hint-text">
+              Klik ruang di daftar untuk pindah. Ruang baru otomatis ditambahkan saat pertama kali
+              dibuka.
+            </p>
+          </div>
+        </section>
+
         <section class="card panel">
           <div class="panel-head">
             <h2>Tampilan &amp; pengaturan</h2>
@@ -267,14 +295,6 @@
               <label class="toggle"><input type="checkbox" id="showStatus" /><span>Indikator koneksi</span></label>
               <label class="toggle"><input type="checkbox" id="blink" /><span>Kedip saat habis</span></label>
               <label class="toggle"><input type="checkbox" id="showSublabel" /><span>Subjudul</span></label>
-            </div>
-
-            <div class="room-row" id="roomRow">
-              <label class="field">
-                <span>Nama ruang</span>
-                <input id="roomInput" class="input" maxlength="40" autocomplete="off" />
-              </label>
-              <button class="btn" id="changeRoom" type="button">Pindah</button>
             </div>
 
             <p class="hint-text">

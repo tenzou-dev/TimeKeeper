@@ -634,6 +634,26 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, snapshot(getRoom(roomId)));
     }
 
+    if (pathname === '/api/rooms') {
+      if (req.method !== 'GET') return sendText(res, 405, 'Method not allowed');
+      const list = [...rooms.values()]
+        .map((item) => ({
+          id: item.id,
+          label: item.state.label || '',
+          updatedAt: item.state.updatedAt || 0,
+        }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      return sendJson(res, 200, { ok: true, rooms: list });
+    }
+
+    if (pathname === '/api/rooms/touch') {
+      if (req.method !== 'POST') return sendText(res, 405, 'Method not allowed');
+      const body = await readJson(req);
+      const target = cleanRoomId(body && body.room);
+      getRoom(target);
+      return sendJson(res, 200, { ok: true, room: target });
+    }
+
     if (pathname === '/api/action') {
       if (req.method !== 'POST') return sendText(res, 405, 'Method not allowed');
       const body = await readJson(req);

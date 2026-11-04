@@ -772,6 +772,75 @@ export class Room {
 }
 
 /* ------------------------------------------------------------------ */
+/* Durable Object: daftar ruang                                        */
+/* ------------------------------------------------------------------ */
+
+const MAX_REGISTERED_ROOMS = 300;
+
+export class Registry {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    this.rooms = null;
+  }
+
+  async ensureState() {
+    if (this.rooms) return this.rooms;
+    const stored = await this.ctx.storage.get('rooms');
+    this.rooms = stored && typeof stored === 'object' ? stored : {};
+    return this.rooms;
+  }
+
+  async save() {
+    await this.ctx.storage.put('rooms', this.rooms);
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    await this.ensureState();
+
+    if (url.pathname === '/register') {
+      if (request.method !== 'POST') {
+        return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ ok: false, error: 'JSON tidak valid.' }, 400);
+      }
+
+      const id = cleanRoomId(body && body.room);
+      const label = cleanText(body && body.label, 160);
+      const existing = this.rooms[id];
+      const now = Date.now();
+
+      this.rooms[id] = {
+        id,
+        label: label || (existing && existing.label) || '',
+        updatedAt: now,
+      };
+
+      const ordered = Object.values(this.rooms).sort((a, b) => b.updatedAt - a.updatedAt);
+      this.rooms = Object.fromEntries(
+        ordered.slice(0, MAX_REGISTERED_ROOMS).map((room) => [room.id, room])
+      );
+      await this.save();
+
+      return jsonResponse({ ok: true, room: this.rooms[id] });
+    }
+
+    if (url.pathname === '/list') {
+      const rooms = Object.values(this.rooms).sort((a, b) => b.updatedAt - a.updatedAt);
+      return jsonResponse({ ok: true, rooms });
+    }
+
+    return jsonResponse({ ok: false, error: 'Tidak ditemukan.' }, 404);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Worker                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -803,8 +872,38 @@ function roomStub(env, room) {
   return env.ROOMS.get(id);
 }
 
+function registryStub(env) {
+  const id = env.REGISTRY.idFromName('global');
+  return env.REGISTRY.get(id);
+}
+
+async function registerRoom(env, room, label) {
+  if (!env.REGISTRY) return;
+  try {
+    await registryStub(env).fetch('https://registry.internal/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room, label: label || '' }),
+    });
+  } catch {
+    /* pendaftaran ruang tidak boleh menggagalkan aksi utama */
+  }
+}
+
+async function listRegisteredRooms(env) {
+  if (!env.REGISTRY) return [];
+  try {
+    const res = await registryStub(env).fetch('https://registry.internal/list');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.rooms) ? data.rooms : [];
+  } catch {
+    return [];
+  }
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
@@ -984,6 +1083,49 @@ export default {
     }
 
     /* API ruang ------------------------------------------------------- */
+    if (path === '/api/rooms') {
+      if (method !== 'GET') return jsonResponse({ ok: false, error: 'Gunakan GET.' }, 405);
+      if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
+
+      let rooms = await listRegisteredRooms(env);
+      const ownRoom = githubRoomFor(session);
+
+      if (ownRoom) {
+        rooms = rooms.filter((item) => item.id === ownRoom);
+        if (!rooms.length) rooms = [{ id: ownRoom, label: '', updatedAt: Date.now() }];
+      } else if (!rooms.some((item) => item.id === DEFAULT_ROOM)) {
+        rooms.push({ id: DEFAULT_ROOM, label: '', updatedAt: 0 });
+      }
+
+      return jsonResponse({ ok: true, rooms });
+    }
+
+    if (path === '/api/rooms/touch') {
+      if (method !== 'POST') return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
+      if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
+      if (!isSameOrigin(request)) {
+        return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
+      }
+
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        body = {};
+      }
+
+      const room = cleanRoomId(body && body.room);
+      if (!canControlRoom(session, room)) {
+        return jsonResponse(
+          { ok: false, error: 'Kamu hanya bisa mengatur ruang akunmu sendiri.' },
+          403
+        );
+      }
+
+      await registerRoom(env, room, cleanText(body && body.label, 160));
+      return jsonResponse({ ok: true, room });
+    }
+
     if (path === '/api/state') {
       const room = cleanRoomId(url.searchParams.get('room'));
       return roomStub(env, room).fetch(request);
@@ -1014,6 +1156,9 @@ export default {
           { ok: false, error: 'Kamu hanya bisa mengatur ruang akunmu sendiri.' },
           403
         );
+      }
+      if (ctx && typeof ctx.waitUntil === 'function') {
+        ctx.waitUntil(registerRoom(env, room, ''));
       }
       return roomStub(env, room).fetch(request);
     }

@@ -230,6 +230,9 @@ buka port-nya ke internet.
 6. Kirim pesan ke panggung lewat tombol cepat (mis. “5 menit lagi”) atau tulis pesan sendiri.
 7. Sesi berikutnya: tambahkan di **Rundown**, lalu klik **Muat** untuk langsung mengisi
    judul + durasi sesi tersebut.
+8. Butuh pindah ruang? Buka kartu **Ruang** di dashboard, lalu klik salah satu ruang di
+   daftar. Tidak perlu mengetik nama ruang lagi. Ruang yang sedang aktif ditandai
+   **Sekarang**, dan link header **StageTimer** tetap membawa ruang tersebut.
 
 ### Tombol & shortcut
 
@@ -256,6 +259,10 @@ buka port-nya ke internet.
 - Atur ambang kuning & merah sendiri.
 - Progress bar, jam dinding, subjudul, indikator koneksi — semuanya bisa dimatikan.
 - Beberapa **ruang** (`?room=nama`) untuk beberapa panggung/seksi sekaligus.
+- **Kelola ruang** di dashboard: daftar ruang yang pernah dibuat, klik untuk pindah tanpa
+  perlu mengetik ulang nama ruang. Ruang baru otomatis muncul di daftar saat pertama dibuka.
+  Klik judul **StageTimer** tidak lagi melempar ke Ruang Utama — ruang yang sedang aktif tetap
+  terbawa.
 - State tersimpan otomatis di server; refresh browser tidak menghilangkan timer.
 - Timer tetap jalan walau device operator sempat terputus, karena waktu dihitung dari server.
 - Login operator dengan cookie sesi 24 jam (mode online), lewat GitHub atau email/password.
@@ -322,6 +329,10 @@ Lakukan 10–15 menit sebelum mulai:
 - Frontend dilayani sebagai **Workers Assets** dari folder `public/`.
 - Setiap ruang (`?room=...`) adalah satu **Durable Object** bernama `Room` yang menyimpan
   state di storage SQLite dan menyiarkan perubahan lewat **WebSocket**.
+- Daftar ruang disimpan oleh Durable Object `Registry`. Dashboard mendaftarkan ruang saat
+  dibuka/dipakai, lalu menampilkan gabungan daftar server dan riwayat browser
+  (`localStorage`). Karena Durable Object tidak bisa dienumerasi, ruang lama baru muncul di
+  daftar setelah dibuka minimal sekali (atau setelah ada aksi dari dashboard).
 - Dashboard memakai cookie `st_session` yang ditandatangani **HMAC-SHA256**; cookie bersifat
   `HttpOnly`, `SameSite=Lax`, dan `Secure` saat HTTPS. Masa berlaku 24 jam.
 - `/api/action` membutuhkan sesi login dan memeriksa origin. Sesi GitHub hanya boleh
@@ -360,7 +371,7 @@ Lakukan 10–15 menit sebelum mulai:
 ```text
 stage-timer/
 ├─ worker.js             # Worker Cloudflare: auth, routing, Durable Object
-├─ wrangler.jsonc        # konfigurasi Worker, assets, binding ROOMS
+├─ wrangler.jsonc        # konfigurasi Worker, assets, binding ROOMS + REGISTRY
 ├─ server.js             # server lokal: HTTP + SSE + penyimpanan JSON
 ├─ start.bat             # jalankan versi lokal (bisa: start.bat 8080)
 ├─ package.json          # script start / dev / deploy

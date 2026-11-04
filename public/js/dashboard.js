@@ -13,6 +13,7 @@
   var els = {
     conn: $('conn'),
     connText: $('connText'),
+    brand: $('brand'),
     roomName: $('roomName'),
     copyLink: $('copyLink'),
     copyLink2: $('copyLink2'),
@@ -61,6 +62,9 @@
     showSublabel: $('showSublabel'),
     roomInput: $('roomInput'),
     changeRoom: $('changeRoom'),
+    roomForm: $('roomForm'),
+    roomList: $('roomList'),
+    roomCount: $('roomCount'),
     roomRow: $('roomRow'),
     toasts: $('toasts'),
     account: $('account'),
@@ -80,7 +84,8 @@
   var displayUrl = location.origin + displayPath;
 
   els.roomName.textContent = room;
-  els.roomInput.value = room;
+  els.roomInput.value = '';
+  if (els.brand) els.brand.href = '/?room=' + encodeURIComponent(room);
   els.openDisplay.href = displayPath;
   els.preview.src = '/display?preview=1&room=' + encodeURIComponent(room);
   els.displayUrl.textContent = displayUrl;
@@ -104,6 +109,220 @@
     els.connText.textContent =
       status === 'online' ? 'Tersambung' : status === 'offline' ? 'Terputus — mencoba' : 'Menghubungkan';
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Daftar ruang                                                        */
+  /* ------------------------------------------------------------------ */
+
+  var ROOMS_KEY = 'st_room_history';
+  var DEFAULT_ROOM_LABEL = 'Pembicara';
+  var serverRooms = [];
+  var roomEntries = [];
+  var lastRoomLabel = null;
+  var lastTouchedLabel = null;
+
+  function cleanRoomLabel(value) {
+    var label = String(value == null ? '' : value)
+      .trim()
+      .slice(0, 160);
+    return label === DEFAULT_ROOM_LABEL ? '' : label;
+  }
+
+  function readRoomHistory() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(function (item) {
+          return item && typeof item.id === 'string' && item.id;
+        })
+        .map(function (item) {
+          return {
+            id: ST.normalizeRoom(item.id),
+            label: cleanRoomLabel(item.label),
+            updatedAt: Number(item.updatedAt) || 0,
+          };
+        });
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeRoomHistory(list) {
+    try {
+      localStorage.setItem(ROOMS_KEY, JSON.stringify(list.slice(0, 60)));
+    } catch (err) {
+      /* localStorage bisa diblokir; daftar server tetap dipakai */
+    }
+  }
+
+  function mergeRoomList() {
+    var map = {};
+
+    readRoomHistory().forEach(function (item) {
+      map[item.id] = item;
+    });
+
+    serverRooms.forEach(function (item) {
+      var entry = map[item.id];
+      if (!entry) entry = { id: item.id, label: '', updatedAt: 0 };
+      if (item.label) entry.label = item.label;
+      entry.updatedAt = Math.max(entry.updatedAt || 0, Number(item.updatedAt) || 0);
+      map[item.id] = entry;
+    });
+
+    var current = map[room];
+    if (!current) current = { id: room, label: '', updatedAt: Date.now() };
+    if (state && state.label) {
+      var currentLabel = cleanRoomLabel(state.label);
+      if (currentLabel) current.label = currentLabel;
+    }
+    map[room] = current;
+
+    roomEntries = Object.keys(map)
+      .map(function (id) {
+        return map[id];
+      })
+      .sort(function (a, b) {
+        return (b.updatedAt || 0) - (a.updatedAt || 0);
+      });
+
+    renderRooms();
+  }
+
+  function renderRooms() {
+    if (!els.roomList) return;
+    els.roomList.textContent = '';
+    els.roomCount.textContent = roomEntries.length + ' ruang';
+
+    roomEntries.forEach(function (entry) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'room-item';
+      button.dataset.room = entry.id;
+      button.title = 'Buka ruang ' + entry.id;
+
+      if (entry.id === room) {
+        button.classList.add('is-current');
+        button.setAttribute('aria-current', 'true');
+      }
+
+      var main = document.createElement('span');
+      main.className = 'room-item-main';
+
+      var label = document.createElement('span');
+      label.className = 'room-item-label';
+      label.textContent = entry.label || entry.id;
+      label.title = entry.label ? entry.label + ' · #' + entry.id : entry.id;
+
+      main.appendChild(label);
+
+      if (entry.label) {
+        var id = document.createElement('span');
+        id.className = 'room-item-id';
+        id.textContent = '#' + entry.id;
+        main.appendChild(id);
+      }
+
+      button.appendChild(main);
+
+      if (entry.id === room) {
+        var badge = document.createElement('span');
+        badge.className = 'room-item-badge';
+        badge.textContent = 'Sekarang';
+        button.appendChild(badge);
+      } else {
+        var arrow = document.createElement('span');
+        arrow.className = 'room-item-arrow';
+        arrow.textContent = '→';
+        button.appendChild(arrow);
+      }
+
+      button.addEventListener('click', function () {
+        openRoom(entry.id);
+      });
+
+      els.roomList.appendChild(button);
+    });
+  }
+
+  function rememberRoom(id, label) {
+    id = ST.normalizeRoom(id);
+    var list = readRoomHistory();
+    var entry = null;
+
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) {
+        entry = list[i];
+        break;
+      }
+    }
+
+    var nextLabel = cleanRoomLabel(label);
+    if (!entry) {
+      entry = { id: id, label: nextLabel, updatedAt: Date.now() };
+      list.unshift(entry);
+    } else {
+      if (nextLabel) entry.label = nextLabel;
+      entry.updatedAt = Date.now();
+    }
+
+    writeRoomHistory(list);
+    mergeRoomList();
+  }
+
+  function touchRoom(label) {
+    var value = cleanRoomLabel(label);
+    if (lastTouchedLabel === value) return;
+    lastTouchedLabel = value;
+
+    fetch('/api/rooms/touch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ room: room, label: value }),
+    }).catch(function () {
+      /* daftar ruang tidak boleh mengganggu operasi timer */
+    });
+  }
+
+  function openRoom(id) {
+    var next = ST.normalizeRoom(id);
+    if (next === room) {
+      toast('Kamu sudah berada di ruang ini.', 'ok');
+      return;
+    }
+    rememberRoom(next, '');
+    location.href = '/?room=' + encodeURIComponent(next);
+  }
+
+  function loadRoomList() {
+    fetch('/api/rooms', { headers: { Accept: 'application/json' } })
+      .then(function (res) {
+        if (!res.ok) throw new Error('rooms');
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok || !Array.isArray(data.rooms)) return;
+        serverRooms = data.rooms
+          .filter(function (item) {
+            return item && item.id;
+          })
+          .map(function (item) {
+            return {
+              id: ST.normalizeRoom(item.id),
+              label: cleanRoomLabel(item.label),
+              updatedAt: Number(item.updatedAt) || 0,
+            };
+          });
+        mergeRoomList();
+      })
+      .catch(function () {
+        /* versi offline / sesi berakhir: pakai riwayat browser */
+      });
+  }
+
+  rememberRoom(room, '');
+  loadRoomList();
 
   /* ------------------------------------------------------------------ */
   /* Akun & sesi (versi online)                                          */
@@ -289,6 +508,15 @@
     renderPresets();
     renderRundown();
     renderMessageStatus();
+    syncRoomLabel();
+  }
+
+  function syncRoomLabel() {
+    var label = cleanRoomLabel(state.label);
+    if (label === lastRoomLabel) return;
+    lastRoomLabel = label;
+    rememberRoom(room, label);
+    touchRoom(label);
   }
 
   function renderTimer() {
@@ -661,16 +889,13 @@
     });
   });
 
-  els.changeRoom.addEventListener('click', function () {
-    var next = ST.normalizeRoom(els.roomInput.value);
-    location.href = '/?room=' + encodeURIComponent(next);
-  });
-
-  els.roomInput.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      els.changeRoom.click();
+  els.roomForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!els.roomInput.value.trim()) {
+      els.roomInput.focus();
+      return;
     }
+    openRoom(ST.normalizeRoom(els.roomInput.value));
   });
 
   function copyDisplayLink() {
