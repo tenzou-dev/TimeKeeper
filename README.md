@@ -230,11 +230,12 @@ buka port-nya ke internet.
 6. Kirim pesan ke panggung lewat tombol cepat (mis. “5 menit lagi”) atau tulis pesan sendiri.
 7. Sesi berikutnya: tambahkan di **Rundown**, lalu klik **Muat** untuk langsung mengisi
    judul + durasi sesi tersebut.
-8. Butuh pindah ruang? Buka kartu **Ruang** di dashboard, lalu klik salah satu ruang di
-   daftar. Tidak perlu mengetik nama ruang lagi. Ruang yang sedang aktif ditandai
-   **Sekarang**, dan link header **StageTimer** tetap membawa ruang tersebut. Gunakan
-   **Ubah** untuk memberi nama tampilan dan **Hapus** untuk mengosongkan ruang (khusus admin;
-   ruang utama tidak bisa dihapus).
+8. Butuh pindah ruang? Buka kartu **Kelola Ruang** di dashboard, lalu klik salah satu ruang
+   di daftar. Tidak perlu mengetik nama ruang lagi. Ketik nama baru di kolom atas untuk
+   menambah ruang. Ruang yang sedang aktif ditandai **Sekarang**, dan link header
+   **StageTimer** tetap membawa ruang tersebut. Gunakan **Ubah** untuk memberi nama tampilan
+   dan **Hapus** untuk mengosongkan ruang (ruang utama dan ruang utama akun GitHub tidak bisa
+   dihapus).
 
 ### Tombol & shortcut
 
@@ -265,17 +266,19 @@ buka port-nya ke internet.
   perlu mengetik ulang nama ruang. Ruang baru otomatis muncul di daftar saat pertama dibuka.
   Klik judul **StageTimer** tidak lagi melempar ke Ruang Utama — ruang yang sedang aktif tetap
   terbawa.
-- **Ubah & hapus ruang** (akun admin): beri nama tampilan ruang lewat tombol **Ubah**, atau
-  kosongkan timer/rundown lewat tombol **Hapus**. Nama tampilan tersimpan terpisah dari judul
-  sesi, jadi tidak mengubah teks yang tampil di panggung.
+- **Ubah & hapus ruang**: beri nama tampilan ruang lewat tombol **Ubah**, atau kosongkan
+  timer/rundown lewat tombol **Hapus**. Nama tampilan tersimpan terpisah dari judul sesi, jadi
+  tidak mengubah teks yang tampil di panggung. Akun GitHub bisa mengubah/menghapus ruang
+  miliknya sendiri, tetapi ruang utama akun (`u<id>`) tidak bisa dihapus.
 - **Riwayat ruang per akun**: daftar ruang di browser disimpan terpisah untuk admin, tiap akun
-  GitHub, dan mode lokal. Akun GitHub hanya melihat ruangnya sendiri; akun admin memang bisa
-  melihat semua ruang untuk keperluan pengawasan.
+  GitHub, dan mode lokal. Kartu **Kelola Ruang** tetap muncul untuk semua akun: akun GitHub
+  melihat dan menambah ruang miliknya sendiri, sedangkan admin melihat semua ruang untuk
+  keperluan pengawasan.
 - State tersimpan otomatis di server; refresh browser tidak menghilangkan timer.
 - Timer tetap jalan walau device operator sempat terputus, karena waktu dihitung dari server.
 - Login operator dengan cookie sesi 24 jam (mode online), lewat GitHub atau email/password.
-- Setiap akun GitHub otomatis mendapat ruang timer terpisah; tidak bisa mengontrol ruang
-  akun lain. Akun admin tetap bisa mengatur semua ruang.
+- Setiap akun GitHub otomatis mendapat ruang timer terpisah dan bisa menambah ruang sendiri;
+  tidak bisa mengontrol ruang akun lain. Akun admin tetap bisa mengatur semua ruang.
 
 ---
 
@@ -344,13 +347,15 @@ Lakukan 10–15 menit sebelum mulai:
   dienumerasi, ruang lama baru muncul di daftar setelah dibuka minimal sekali (atau setelah
   ada aksi dari dashboard).
 - Nama tampilan ruang disimpan di `Registry` dan terpisah dari judul sesi. Endpoint
-  `/api/rooms/update` dan `/api/rooms/delete` hanya menerima sesi admin. Menghapus ruang akan
-  mengosongkan state Durable Object (timer, rundown, pengaturan) dan menghapusnya dari daftar;
-  ruang `utama` tidak bisa dihapus.
+  `/api/rooms/update` dan `/api/rooms/delete` menerima pemilik ruang (admin atau akun GitHub
+  yang memiliki ruang tersebut). Menghapus ruang akan mengosongkan state Durable Object
+  (timer, rundown, pengaturan) dan menghapusnya dari daftar; ruang `utama` dan ruang utama
+  akun GitHub tidak bisa dihapus.
 - Dashboard memakai cookie `st_session` yang ditandatangani **HMAC-SHA256**; cookie bersifat
   `HttpOnly`, `SameSite=Lax`, dan `Secure` saat HTTPS. Masa berlaku 24 jam.
 - `/api/action` membutuhkan sesi login dan memeriksa origin. Sesi GitHub hanya boleh
-  mengubah ruangnya sendiri (`u<nomor-id-github>`); sesi admin boleh semua ruang.
+  mengubah ruang miliknya (ruang utama `u<nomor-id-github>` dan ruang tambahan yang ia buat);
+  sesi admin boleh semua ruang.
   `/api/ws` dan `/api/state` bersifat publik agar layar panggung bisa dibuka tanpa akun,
   tetapi WebSocket hanya menerima ping/sync — bukan perintah yang mengubah timer.
 - State timer tetap tersimpan saat tidak ada device yang terhubung. Pesan dengan batas waktu

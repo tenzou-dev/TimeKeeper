@@ -118,6 +118,7 @@
   var DEFAULT_ROOM_LABEL = 'Pembicara';
   var roomHistoryKey = ROOM_HISTORY_PREFIX + 'guest';
   var canManageRooms = false;
+  var defaultOwnRoom = '';
   var serverRooms = [];
   var roomEntries = [];
   var lastRoomLabel = null;
@@ -217,6 +218,12 @@
     return entry.name || entry.label || entry.id;
   }
 
+  function canDeleteRoom(id) {
+    if (id === 'utama') return false;
+    if (defaultOwnRoom && id === defaultOwnRoom) return false;
+    return true;
+  }
+
   function renderRooms() {
     if (!els.roomList) return;
     els.roomList.textContent = '';
@@ -294,14 +301,16 @@
         edit.title = 'Ubah nama tampilan ruang';
         actions.appendChild(edit);
 
-        var remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'room-action room-action-danger';
-        remove.dataset.act = 'delete';
-        remove.dataset.room = entry.id;
-        remove.textContent = 'Hapus';
-        remove.title = 'Hapus ruang';
-        actions.appendChild(remove);
+        if (canDeleteRoom(entry.id)) {
+          var remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'room-action room-action-danger';
+          remove.dataset.act = 'delete';
+          remove.dataset.room = entry.id;
+          remove.textContent = 'Hapus';
+          remove.title = 'Hapus ruang';
+          actions.appendChild(remove);
+        }
 
         wrap.appendChild(actions);
       }
@@ -396,8 +405,24 @@
       toast('Kamu sudah berada di ruang ini.', 'ok');
       return;
     }
-    rememberRoom(next, '');
-    location.href = '/?room=' + encodeURIComponent(next);
+
+    function go(target) {
+      rememberRoom(target, '');
+      location.href = '/?room=' + encodeURIComponent(target);
+    }
+
+    postRoom('/api/rooms/touch', { room: next, label: '' })
+      .then(function (data) {
+        go(ST.normalizeRoom((data && data.room) || next));
+      })
+      .catch(function (err) {
+        if (err && err.status) {
+          toast(err.message || 'Gagal membuka ruang.', 'error');
+          return;
+        }
+        /* versi offline tanpa server: tetap buka ruang */
+        go(next);
+      });
   }
 
   function findRoomEntry(id) {
@@ -420,7 +445,9 @@
         })
         .then(function (data) {
           if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) || 'Permintaan gagal.');
+            var error = new Error((data && data.error) || 'Permintaan gagal.');
+            error.status = res.status;
+            throw error;
           }
           return data;
         });
@@ -455,6 +482,10 @@
       toast('Ruang utama tidak bisa dihapus.', 'error');
       return;
     }
+    if (defaultOwnRoom && id === defaultOwnRoom) {
+      toast('Ruang utama akun tidak bisa dihapus.', 'error');
+      return;
+    }
 
     var display = roomDisplayName(entry);
     var extra =
@@ -474,7 +505,8 @@
       .then(function () {
         removeRoomFromHistory(id);
         if (id === room) {
-          location.href = '/?room=utama';
+          location.href =
+            '/?room=' + encodeURIComponent(defaultOwnRoom || 'utama');
           return;
         }
         toast('Ruang ' + id + ' dihapus.', 'ok');
@@ -512,7 +544,7 @@
       });
   }
 
-  function initRooms(scope, onlyRoom) {
+  function initRooms(scope) {
     roomHistoryKey = ROOM_HISTORY_PREFIX + scope;
     if (scope === 'admin' || scope === 'local') migrateLegacyHistory(roomHistoryKey);
 
@@ -522,21 +554,8 @@
     lastTouchedLabel = null;
     els.roomRow.hidden = !canManageRooms;
 
-    if (onlyRoom) {
-      serverRooms = [
-        {
-          id: ST.normalizeRoom(onlyRoom.id),
-          name: cleanRoomName(onlyRoom.name),
-          label: cleanRoomLabel(onlyRoom.label),
-          owner: String(onlyRoom.owner || '').slice(0, 20),
-          updatedAt: Number(onlyRoom.updatedAt) || Date.now(),
-        },
-      ];
-      rememberRoom(room, '');
-    } else {
-      rememberRoom(room, '');
-      loadRoomList();
-    }
+    rememberRoom(room, '');
+    loadRoomList();
 
     if (state) syncRoomLabel();
   }
@@ -615,11 +634,9 @@
             .toUpperCase();
 
           if (data.provider === 'github') {
-            canManageRooms = false;
-            initRooms('gh:' + (data.room || room), {
-              id: data.room || room,
-              owner: 'github',
-            });
+            canManageRooms = true;
+            defaultOwnRoom = ST.normalizeRoom(data.room || room);
+            initRooms('gh:' + defaultOwnRoom);
             if (login) {
               els.roomName.textContent = login;
               document.title = 'StageTimer — @' + login;

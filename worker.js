@@ -217,6 +217,19 @@ function canControlRoom(session, room) {
   return room === githubRoomFor(session);
 }
 
+async function canControlRoomAsync(env, session, room) {
+  if (canControlRoom(session, room)) return true;
+  if (!session || session.provider !== 'github') return false;
+  const entry = await getRegisteredRoom(env, room);
+  return !!(entry && entry.ownerId && entry.ownerId === session.uid);
+}
+
+function isReservedRoom(session, room) {
+  if (room === DEFAULT_ROOM) return true;
+  if (/^u\d+$/.test(room)) return room !== githubRoomFor(session);
+  return false;
+}
+
 function safeNextPath(value) {
   const next = String(value == null ? '' : value).slice(0, 500);
   if (!next || next.charAt(0) !== '/') return '/';
@@ -828,14 +841,20 @@ export class Registry {
       const label = cleanText(body && body.label, 160);
       const name = cleanText(body && body.name, 160);
       const owner = cleanText(body && body.owner, 20);
+      const ownerId = cleanText(body && body.ownerId, 40);
       const existing = this.rooms[id];
       const now = Date.now();
+      const nextOwner =
+        existing && existing.owner === 'github' && owner === 'admin'
+          ? 'github'
+          : owner || (existing && existing.owner) || '';
 
       this.rooms[id] = {
         id,
         name: name || (existing && existing.name) || '',
         label: label || (existing && existing.label) || '',
-        owner: owner || (existing && existing.owner) || '',
+        owner: nextOwner,
+        ownerId: ownerId || (existing && existing.ownerId) || '',
         updatedAt: now,
       };
 
@@ -866,7 +885,14 @@ export class Registry {
 
       const id = cleanRoomId(body.room);
       const name = cleanText(body.name, 160);
-      const existing = this.rooms[id] || { id, name: '', label: '', owner: '', updatedAt: 0 };
+      const existing = this.rooms[id] || {
+        id,
+        name: '',
+        label: '',
+        owner: '',
+        ownerId: '',
+        updatedAt: 0,
+      };
       existing.name = name;
       existing.updatedAt = Date.now();
       this.rooms[id] = existing;
@@ -895,6 +921,11 @@ export class Registry {
       delete this.rooms[id];
       await this.save();
       return jsonResponse({ ok: true, room: id });
+    }
+
+    if (url.pathname === '/get') {
+      const id = cleanRoomId(url.searchParams.get('room'));
+      return jsonResponse({ ok: true, room: this.rooms[id] || null });
     }
 
     if (url.pathname === '/list') {
@@ -943,7 +974,7 @@ function registryStub(env) {
   return env.REGISTRY.get(id);
 }
 
-async function registerRoom(env, room, label, name, owner) {
+async function registerRoom(env, room, label, name, owner, ownerId) {
   if (!env.REGISTRY) return;
   try {
     await registryStub(env).fetch('https://registry.internal/register', {
@@ -954,10 +985,25 @@ async function registerRoom(env, room, label, name, owner) {
         label: label || '',
         name: name || '',
         owner: owner || '',
+        ownerId: ownerId || '',
       }),
     });
   } catch {
     /* pendaftaran ruang tidak boleh menggagalkan aksi utama */
+  }
+}
+
+async function getRegisteredRoom(env, room) {
+  if (!env.REGISTRY) return null;
+  try {
+    const res = await registryStub(env).fetch(
+      'https://registry.internal/get?room=' + encodeURIComponent(room)
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.room ? data.room : null;
+  } catch {
+    return null;
   }
 }
 
@@ -1190,9 +1236,18 @@ export default {
       const ownRoom = githubRoomFor(session);
 
       if (ownRoom) {
-        rooms = rooms.filter((item) => item.id === ownRoom);
-        if (!rooms.length) {
-          rooms = [{ id: ownRoom, name: '', label: '', owner: 'github', updatedAt: Date.now() }];
+        rooms = rooms.filter(
+          (item) => item.id === ownRoom || (item.ownerId && item.ownerId === session.uid)
+        );
+        if (!rooms.some((item) => item.id === ownRoom)) {
+          rooms.unshift({
+            id: ownRoom,
+            name: '',
+            label: '',
+            owner: 'github',
+            ownerId: session.uid,
+            updatedAt: Date.now(),
+          });
         }
       } else if (!rooms.some((item) => item.id === DEFAULT_ROOM)) {
         rooms.push({ id: DEFAULT_ROOM, name: '', label: '', owner: 'admin', updatedAt: 0 });
@@ -1216,11 +1271,17 @@ export default {
       }
 
       const room = cleanRoomId(body && body.room);
-      if (!canControlRoom(session, room)) {
-        return jsonResponse(
-          { ok: false, error: 'Kamu hanya bisa mengatur ruang akunmu sendiri.' },
-          403
-        );
+      const owner = session.provider === 'admin' ? 'admin' : 'github';
+      const ownerId = session.provider === 'admin' ? '' : session.uid;
+
+      if (!(await canControlRoomAsync(env, session, room))) {
+        const existing = await getRegisteredRoom(env, room);
+        if (existing || isReservedRoom(session, room)) {
+          return jsonResponse(
+            { ok: false, error: 'Nama ruang ini sudah dipakai akun lain.' },
+            403
+          );
+        }
       }
 
       await registerRoom(
@@ -1228,7 +1289,8 @@ export default {
         room,
         cleanText(body && body.label, 160),
         '',
-        session.provider === 'admin' ? 'admin' : 'github'
+        owner,
+        ownerId
       );
       return jsonResponse({ ok: true, room });
     }
@@ -1236,12 +1298,6 @@ export default {
     if (path === '/api/rooms/update') {
       if (method !== 'POST') return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
       if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
-      if (session.provider !== 'admin') {
-        return jsonResponse(
-          { ok: false, error: 'Hanya akun admin yang bisa mengubah nama ruang.' },
-          403
-        );
-      }
       if (!isSameOrigin(request)) {
         return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
       }
@@ -1258,6 +1314,13 @@ export default {
       }
 
       const room = cleanRoomId(body.room);
+      if (!(await canControlRoomAsync(env, session, room))) {
+        return jsonResponse(
+          { ok: false, error: 'Kamu hanya bisa mengubah ruang milikmu sendiri.' },
+          403
+        );
+      }
+
       const name = cleanText(body.name, 160);
       const ok = await updateRegisteredRoom(env, room, name);
       if (!ok) {
@@ -1270,12 +1333,6 @@ export default {
     if (path === '/api/rooms/delete') {
       if (method !== 'POST') return jsonResponse({ ok: false, error: 'Gunakan POST.' }, 405);
       if (!session) return jsonResponse({ ok: false, error: 'Belum login.' }, 401);
-      if (session.provider !== 'admin') {
-        return jsonResponse(
-          { ok: false, error: 'Hanya akun admin yang bisa menghapus ruang.' },
-          403
-        );
-      }
       if (!isSameOrigin(request)) {
         return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
       }
@@ -1292,8 +1349,20 @@ export default {
       }
 
       const room = cleanRoomId(body.room);
+      if (!(await canControlRoomAsync(env, session, room))) {
+        return jsonResponse(
+          { ok: false, error: 'Kamu hanya bisa menghapus ruang milikmu sendiri.' },
+          403
+        );
+      }
       if (room === DEFAULT_ROOM) {
         return jsonResponse({ ok: false, error: 'Ruang utama tidak bisa dihapus.' }, 400);
+      }
+      if (session.provider === 'github' && room === githubRoomFor(session)) {
+        return jsonResponse(
+          { ok: false, error: 'Ruang utama akun tidak bisa dihapus.' },
+          400
+        );
       }
 
       try {
@@ -1334,7 +1403,7 @@ export default {
         return jsonResponse({ ok: false, error: 'Origin tidak valid.' }, 403);
       }
       const room = cleanRoomId(url.searchParams.get('room'));
-      if (!canControlRoom(session, room)) {
+      if (!(await canControlRoomAsync(env, session, room))) {
         return jsonResponse(
           { ok: false, error: 'Kamu hanya bisa mengatur ruang akunmu sendiri.' },
           403
@@ -1347,7 +1416,8 @@ export default {
             room,
             '',
             '',
-            session.provider === 'admin' ? 'admin' : 'github'
+            session.provider === 'admin' ? 'admin' : 'github',
+            session.provider === 'admin' ? '' : session.uid
           )
         );
       }
@@ -1368,7 +1438,10 @@ export default {
       const ownRoom = githubRoomFor(session);
       if (ownRoom) {
         const requestedRoom = cleanRoomId(url.searchParams.get('room'));
-        if (requestedRoom !== ownRoom) {
+        if (
+          requestedRoom !== ownRoom &&
+          !(await canControlRoomAsync(env, session, requestedRoom))
+        ) {
           return redirect('/?room=' + encodeURIComponent(ownRoom));
         }
       }
